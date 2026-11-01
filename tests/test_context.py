@@ -97,3 +97,39 @@ class ContextTest(unittest.TestCase):
         result = run(str(ROOT / 'bin/bootstrap-deploy-os'), env={**self.env, 'DEPLOY_OS_INSTALL_HOME': str(home)})
         self.assertNotEqual(0, result.returncode)
         self.assertEqual([], list(external.iterdir()))
+
+    def test_bootstrap_removes_only_checkout_owned_creator_link(self):
+        home = self.base / 'owned legacy home'
+        skills = home / '.codex/skills'
+        skills.mkdir(parents=True)
+        creator = skills / 'deploy-os-creator'
+        creator.symlink_to(ROOT / '.codex/skills/deploy-os-creator')
+        env = {**self.env, 'DEPLOY_OS_INSTALL_HOME': str(home)}
+        result = run(str(ROOT / 'bin/bootstrap-deploy-os'), env=env)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(creator.is_symlink())
+        self.assertEqual(['deploy-os'], sorted(item.name for item in skills.iterdir()))
+        self.assertEqual(0, run(str(ROOT / 'bin/bootstrap-deploy-os'), env=env).returncode)
+
+    def test_bootstrap_preserves_foreign_creator_paths(self):
+        for kind in ('file', 'directory', 'broken-symlink'):
+            with self.subTest(kind=kind):
+                home = self.base / ('foreign creator ' + kind)
+                skills = home / '.codex/skills'
+                skills.mkdir(parents=True)
+                creator = skills / 'deploy-os-creator'
+                if kind == 'file':
+                    creator.write_text('foreign')
+                elif kind == 'directory':
+                    creator.mkdir()
+                    (creator / 'keep').write_text('foreign')
+                else:
+                    creator.symlink_to(self.base / 'missing foreign skill')
+                result = run(str(ROOT / 'bin/bootstrap-deploy-os'), env={**self.env, 'DEPLOY_OS_INSTALL_HOME': str(home)})
+                self.assertEqual(0, result.returncode, result.stderr)
+                if kind == 'file':
+                    self.assertEqual('foreign', creator.read_text())
+                elif kind == 'directory':
+                    self.assertEqual('foreign', (creator / 'keep').read_text())
+                else:
+                    self.assertEqual(self.base / 'missing foreign skill', creator.readlink())

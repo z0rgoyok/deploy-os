@@ -21,7 +21,7 @@ for parent in "$install_home/.codex" "$install_home/.codex/skills" "$install_hom
 done
 
 # Check every destination before creating links; collisions leave no partial install.
-for name in deploy-os deploy-os-creator; do
+for name in deploy-os; do
   [ -f "$toolkit_root/.codex/skills/$name/SKILL.md" ] || {
     echo "Incomplete toolkit: missing skill $name" >&2
     exit 1
@@ -44,14 +44,21 @@ check_link() {
   echo "Existing path requires an explicit migration: $target_path" >&2
   exit 1
 }
-for name in deploy-os deploy-os-creator; do
+for name in deploy-os; do
   check_link "$toolkit_root/.codex/skills/$name" "$install_home/.codex/skills/$name"
 done
 for name in vps-ops secretsctl; do
   check_link "$toolkit_root/bin/$name" "$install_home/.local/bin/$name"
 done
+# The retired skill can be removed only when this checkout owns its exact link.
+legacy_target=$install_home/.codex/skills/deploy-os-creator
+legacy_source=$toolkit_root/.codex/skills/deploy-os-creator
+remove_legacy=no
+if [ -L "$legacy_target" ] && [ "$(readlink "$legacy_target")" = "$legacy_source" ]; then
+  remove_legacy=yes
+fi
 mkdir -p "$install_home/.codex/skills" "$install_home/.local/bin"
-for name in deploy-os deploy-os-creator; do
+for name in deploy-os; do
   target=$install_home/.codex/skills/$name
   [ -L "$target" ] || ln -s "$toolkit_root/.codex/skills/$name" "$target"
 done
@@ -59,4 +66,7 @@ for name in vps-ops secretsctl; do
   target=$install_home/.local/bin/$name
   [ -L "$target" ] || ln -s "$toolkit_root/bin/$name" "$target"
 done
+if [ "$remove_legacy" = yes ]; then
+  unlink "$legacy_target"
+fi
 printf '%s\n' "Toolkit installed in $install_home; set DEPLOY_OS_ROOT to your private state checkout."

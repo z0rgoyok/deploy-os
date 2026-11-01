@@ -1,4 +1,0 @@
-interface:
-  display_name: "Deploy OS Creator"
-  short_description: "Create recoverable private infrastructure state"
-  default_prompt: "Use $deploy-os-creator to create or recover my private state for the first real consumer."

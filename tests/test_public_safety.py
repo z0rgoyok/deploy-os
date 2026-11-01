@@ -47,3 +47,21 @@ class PublicSafetyTest(unittest.TestCase):
             commit(root)
             with redirect_stderr(StringIO()), redirect_stdout(StringIO()):
                 self.assertEqual(1, main(['--root', str(root), '--history']))
+
+    def test_history_accepts_retired_paths_with_each_commit_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True, capture_output=True)
+            legacy = root / '.codex/skills/deploy-os-creator/SKILL.md'
+            legacy.parent.mkdir(parents=True)
+            legacy.write_text('synthetic legacy skill')
+            (root / 'public-files.txt').write_text('public-files.txt\n.codex/skills/deploy-os-creator/SKILL.md\n')
+            commit(root)
+            legacy.unlink()
+            reference = root / '.codex/skills/deploy-os/references/create-state.md'
+            reference.parent.mkdir(parents=True)
+            reference.write_text('synthetic first-run scenario')
+            (root / 'public-files.txt').write_text('public-files.txt\n.codex/skills/deploy-os/references/create-state.md\n')
+            commit(root)
+            with redirect_stderr(StringIO()), redirect_stdout(StringIO()):
+                self.assertEqual(0, main(['--root', str(root), '--history']))

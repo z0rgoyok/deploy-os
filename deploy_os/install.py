@@ -80,7 +80,7 @@ def verify_release(path: Path, revision: str, origin: str) -> None:
     if command("git", "status", "--porcelain", "--untracked-files=all", "--ignored", cwd=path):
         raise InstallError("Checkout is dirty; preserve local changes before update")
     snapshot = revision_files(path, revision)
-    required = {"bin/vps-ops", "bin/secretsctl", ".codex/skills/deploy-os/SKILL.md", ".codex/skills/deploy-os-creator/SKILL.md"}
+    required = {"bin/vps-ops", "bin/secretsctl", ".codex/skills/deploy-os/SKILL.md"}
     if not required.issubset(snapshot):
         raise InstallError("Incomplete toolkit release; verify the selected revision")
     failures = check_snapshot(snapshot)
@@ -88,15 +88,29 @@ def verify_release(path: Path, revision: str, origin: str) -> None:
         raise InstallError("Release safety check failed; run check-public-tree on the selected revision")
 
 
-def links(prefix: Path) -> dict[Path, Path]:
+def links(prefix: Path, revision: str | None = None) -> dict[Path, Path]:
     current = prefix / "current"
     home = prefix / "home"
-    return {
+    result = {
         home / ".codex/skills/deploy-os": current / ".codex/skills/deploy-os",
-        home / ".codex/skills/deploy-os-creator": current / ".codex/skills/deploy-os-creator",
         home / ".local/bin/vps-ops": current / "bin/vps-ops",
         home / ".local/bin/secretsctl": current / "bin/secretsctl",
     }
+    # Without a revision the union includes retired managed targets for preflight.
+    if revision is None or ".codex/skills/deploy-os-creator/SKILL.md" in revision_files(prefix / "releases" / revision, revision):
+        result[home / ".codex/skills/deploy-os-creator"] = current / ".codex/skills/deploy-os-creator"
+    return result
+
+
+def reconcile_links(prefix: Path, revision: str) -> None:
+    desired = links(prefix, revision)
+    for target, source in links(prefix).items():
+        if target in desired:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.is_symlink():
+                target.symlink_to(source)
+        elif target.is_symlink() and os.readlink(target) == str(source):
+            target.unlink()
 
 
 def preflight(prefix: Path) -> None:
@@ -130,10 +144,7 @@ def activate(prefix: Path, receipt: dict, old_receipt: dict | None) -> None:
     # authority; recover aligns current with it after interruption.
     transaction.write_text(json.dumps({"schema_version": 1, "old": old_receipt, "new": receipt}) + "\n")
     temporary.symlink_to(prefix / "releases" / receipt["current"], target_is_directory=True)
-    for target, source in links(prefix).items():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.is_symlink():
-            target.symlink_to(source)
+    reconcile_links(prefix, receipt["current"])
     data.write_text(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
     temporary.replace(current)
     data.replace(prefix / "install.json")
@@ -194,6 +205,7 @@ def recover(prefix: Path, origin: str) -> dict | None:
             if target.is_symlink() and os.readlink(target) == str(source):
                 target.unlink()
     else:
+        reconcile_links(prefix, committed["current"])
         temporary.symlink_to(prefix / "releases" / committed["current"], target_is_directory=True)
         temporary.replace(current)
     journal.unlink()

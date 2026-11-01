@@ -5,7 +5,7 @@
 
 | Владелец | Содержимое |
 | --- | --- |
-| Toolkit | vps-ops, resolver, secretsctl, installer, skills, общие тесты |
+| Toolkit | vps-ops, resolver, secretsctl, installer, единый skill deploy-os, общие тесты |
 | Прикладной репозиторий | Исходники, quality gate, .ops-project |
 | Private state | Инвентарь, hosts, profiles, catalog, vault, recovery, runbook |
 
@@ -29,3 +29,11 @@ Installer принимает ожидаемый origin и полный commit. �
 хранит активный и предыдущий выпуск с receipt. Обновление проверяет origin,
 revision, чистоту и public safety; rollback переключает проверенную предыдущую
 копию. State и глобальная установка остаются под управлением оператора.
+
+Первый запуск и восстановление входят в deploy-os skill. Отсутствие привязки к
+state требует найти существующий authority; решение создать отдельную систему
+задаёт оператор. Исторические releases могут содержать creator skill.
+Installer выбирает набор ссылок по целевому commit: update удаляет только свою
+точную legacy-ссылку, rollback восстанавливает её для старого commit. Чужой
+путь вызывает безопасный отказ до activation. Recover согласует topology
+с committed receipt после прерывания.

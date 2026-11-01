@@ -1,12 +1,28 @@
 ---
 name: deploy-os
-description: Operate an existing private Deploy OS state repository with shared project context, deployment profiles, encrypted secrets, backup and rollback tools.
+description: Create, recover and operate an operator-owned private Deploy OS state repository with project context, deployment profiles, encrypted secrets, backup and rollback.
 ---
 
 # Deploy OS
 
 Общие инструменты установлены вместе с этим навыком. Фактическое состояние
 оператора хранится в одном приватном Git-репозитории.
+
+## Выбор сценария
+
+- При явной просьбе создать новую систему, восстановить утраченное состояние
+  или выполнить первый запуск прочитать [создание и восстановление](references/create-state.md).
+  Сначала найти существующий авторитетный инвентарь, vault и резервные копии.
+  Работа с найденным состоянием следует его владельцу и проверяемым копиям.
+- Для текущих операций использовать выбранный private state по шагам ниже.
+  Отсутствие `DEPLOY_OS_ROOT` само по себе не разрешает создание нового vault.
+
+Локальная работа следует запросу оператора. Создание облачных ресурсов, перенос
+секретов, публикация и изменения работающих систем требуют разрешения на
+соответствующие системы в задаче. Новый state включает первого реального
+потребителя, проверяемый restore, документацию и обязательные копии.
+
+## Операции существующего состояния
 
 1. Прочитать инструкции текущего проекта.
 2. Получить явный `DEPLOY_OS_ROOT` оператора. Если он отсутствует, найти

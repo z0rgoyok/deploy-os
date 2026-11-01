@@ -47,6 +47,37 @@ Update останавливается при dirty checkout, несовпаде�
 После неясного исхода проверить receipt, current и фактический HEAD до повтора.
 Переключение live-потребителя проверяется по его private runbook.
 
+## Переход с двух навыков
+
+Выпуск с единым deploy-os skill включает сценарии первого запуска и
+восстановления в references/create-state.md. Новый prefix получает один skill.
+Исторический installer первого выпуска требует deploy-os-creator в целевом
+release. Для перехода сначала получить отдельный чистый checkout нового
+reviewed commit, проверить его origin/SHA и safety gate, затем запустить
+**installer из этого нового checkout**:
+
+```sh
+"$NEW_TOOLKIT/bin/install-deploy-os" update --prefix "$PREFIX" \
+  --expected-origin "$ORIGIN" --commit "$REVIEWED_COMMIT"
+"$NEW_TOOLKIT/bin/install-deploy-os" rollback --prefix "$PREFIX" \
+  --expected-origin "$ORIGIN"
+```
+
+Этот новый installer сохраняют доступным до завершения приёмки и rollback.
+Update удаляет creator link только с exact target
+`<prefix>/current/.codex/skills/deploy-os-creator`. Rollback на исторический
+commit восстанавливает его; повторный update снова оставляет один skill.
+Чужие creator file/directory/symlink останавливают installer до activation и
+сохраняются. Переход в другом isolated prefix позволяет принять выпуск до
+решения о таких коллизиях.
+
+Bootstrap ставит один skill и очищает creator link только при exact target
+`<toolkit>/.codex/skills/deploy-os-creator` того же checkout. Чужой creator path
+сохраняется. Все остальные target/parent collisions проверяются до записи.
+При прерывании migration команда recover из нового checkout восстанавливает
+набор ссылок по committed receipt в обе стороны. Public history gate проверяет
+каждый старый и новый snapshot по его собственному public-files.txt.
+
 ## Сохранение ресурсов
 
 Временная clone-подготовка удаляется автоматически. Prefix сохраняет версии

@@ -1,8 +1,6 @@
-.codex/skills/deploy-os-creator/SKILL.md
-.codex/skills/deploy-os-creator/agents/openai.yaml
-.codex/skills/deploy-os-creator/references/create-state.md
 .codex/skills/deploy-os/SKILL.md
 .codex/skills/deploy-os/agents/openai.yaml
+.codex/skills/deploy-os/references/create-state.md
 .codex/skills/deploy-os/references/onboarding.md
 .codex/skills/deploy-os/references/secrets.md
 .codex/skills/deploy-os/scripts/resolve-context.py
