@@ -1,0 +1,135 @@
+#!/bin/sh
+set -eu
+
+script_path=$0
+while [ -L "$script_path" ]; do
+  link_target=$(readlink "$script_path")
+  case "$link_target" in
+    /*) script_path=$link_target ;;
+    *) script_path=$(dirname -- "$script_path")/$link_target ;;
+  esac
+done
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd)
+toolkit_root=$(CDPATH='' cd -- "$script_dir/.." && pwd)
+ops_root=${DEPLOY_OS_ROOT:-}
+
+usage() {
+  cat <<'EOF'
+usage: vps-ops [--source DIR] [--project ID] ACTION [ARG ...]
+
+Actions are implemented by projects/<project-id>/operations.sh.
+The project is normally discovered from .ops-project in DIR or its parents.
+
+Examples:
+  vps-ops plan
+  vps-ops deploy
+  vps-ops smoke
+  vps-ops rollback
+EOF
+}
+
+source_dir=${VPS_OPS_SOURCE_DIR:-$PWD}
+project_id=${VPS_OPS_PROJECT:-}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --source)
+      [ "$#" -ge 2 ] || {
+        echo "--source requires a directory" >&2
+        exit 2
+      }
+      source_dir=$2
+      shift 2
+      ;;
+    --project)
+      [ "$#" -ge 2 ] || {
+        echo "--project requires an identifier" >&2
+        exit 2
+      }
+      project_id=$2
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "unknown option: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+[ "$#" -ge 1 ] || {
+  usage >&2
+  exit 2
+}
+
+action=$1
+shift
+
+[ -d "$source_dir" ] || {
+  echo "source directory does not exist: $source_dir" >&2
+  exit 2
+}
+
+[ -n "$ops_root" ] && [ -f "$ops_root/AGENTS.md" ] || {
+  echo "Set DEPLOY_OS_ROOT to the private state checkout containing AGENTS.md" >&2
+  exit 2
+}
+ops_root=$(CDPATH='' cd -- "$ops_root" && pwd)
+source_dir=$(CDPATH='' cd -- "$source_dir" && pwd)
+resolver=$toolkit_root/.codex/skills/deploy-os/scripts/resolve-context.py
+[ -x "$resolver" ] || {
+  echo "missing Deploy OS context resolver: $resolver" >&2
+  exit 2
+}
+
+resolve_field() {
+  if [ -n "$project_id" ]; then
+    DEPLOY_OS_ROOT=$ops_root "$resolver" \
+      --start "$source_dir" --project "$project_id" --field "$1"
+  else
+    DEPLOY_OS_ROOT=$ops_root "$resolver" --start "$source_dir" --field "$1"
+  fi
+}
+
+if ! context_status=$(resolve_field status); then
+  echo "invalid .ops-project context" >&2
+  exit 2
+fi
+if [ "$context_status" = "unregistered" ] || {
+  [ "$context_status" = "control-plane" ] && [ -z "$project_id" ]
+}; then
+  echo "project is unknown: add .ops-project or pass --project ID" >&2
+  exit 2
+fi
+if ! source_dir=$(resolve_field source_root); then
+  echo "project source root is unavailable" >&2
+  exit 2
+fi
+if ! project_id=$(resolve_field project_id); then
+  echo "project identifier is unavailable" >&2
+  exit 2
+fi
+
+operations=$ops_root/projects/$project_id/operations.sh
+[ -x "$operations" ] || {
+  echo "missing executable project profile: $operations" >&2
+  exit 2
+}
+
+export VPS_OPS_ROOT="$ops_root"
+export VPS_OPS_PROJECT="$project_id"
+export VPS_OPS_SOURCE_DIR="$source_dir"
+
+cd "$ops_root"
+exec "$operations" "$action" "$@"

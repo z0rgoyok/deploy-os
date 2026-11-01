@@ -1,0 +1,62 @@
+#!/bin/sh
+set -eu
+
+script_path=$0
+while [ -L "$script_path" ]; do
+  link_target=$(readlink "$script_path")
+  case "$link_target" in
+    /*) script_path=$link_target ;;
+    *) script_path=$(dirname -- "$script_path")/$link_target ;;
+  esac
+done
+toolkit_root=$(CDPATH= cd -- "$(dirname -- "$script_path")/.." && pwd -P)
+install_home=${DEPLOY_OS_INSTALL_HOME:-${HOME:?HOME is required}}
+
+# Parent symlinks could escape an isolated installation home.
+for parent in "$install_home/.codex" "$install_home/.codex/skills" "$install_home/.local" "$install_home/.local/bin"; do
+  if [ -L "$parent" ] || { [ -e "$parent" ] && [ ! -d "$parent" ]; }; then
+    echo "Installation parent collision: $parent" >&2
+    exit 1
+  fi
+done
+
+# Check every destination before creating links; collisions leave no partial install.
+for name in deploy-os deploy-os-creator; do
+  [ -f "$toolkit_root/.codex/skills/$name/SKILL.md" ] || {
+    echo "Incomplete toolkit: missing skill $name" >&2
+    exit 1
+  }
+done
+for name in vps-ops secretsctl; do
+  [ -x "$toolkit_root/bin/$name" ] || {
+    echo "Incomplete toolkit: missing executable $name" >&2
+    exit 1
+  }
+done
+check_link() {
+  source_path=$1
+  target_path=$2
+  if [ -L "$target_path" ]; then
+    [ "$(readlink "$target_path")" = "$source_path" ] && return
+  elif [ ! -e "$target_path" ]; then
+    return
+  fi
+  echo "Existing path requires an explicit migration: $target_path" >&2
+  exit 1
+}
+for name in deploy-os deploy-os-creator; do
+  check_link "$toolkit_root/.codex/skills/$name" "$install_home/.codex/skills/$name"
+done
+for name in vps-ops secretsctl; do
+  check_link "$toolkit_root/bin/$name" "$install_home/.local/bin/$name"
+done
+mkdir -p "$install_home/.codex/skills" "$install_home/.local/bin"
+for name in deploy-os deploy-os-creator; do
+  target=$install_home/.codex/skills/$name
+  [ -L "$target" ] || ln -s "$toolkit_root/.codex/skills/$name" "$target"
+done
+for name in vps-ops secretsctl; do
+  target=$install_home/.local/bin/$name
+  [ -L "$target" ] || ln -s "$toolkit_root/bin/$name" "$target"
+done
+printf '%s\n' "Toolkit installed in $install_home; set DEPLOY_OS_ROOT to your private state checkout."

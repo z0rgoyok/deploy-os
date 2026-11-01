@@ -1,0 +1,4 @@
+interface:
+  display_name: "Deploy OS"
+  short_description: "Operate a private infrastructure state repository"
+  default_prompt: "Use $deploy-os with my private DEPLOY_OS_ROOT to inspect and operate this project."

@@ -1,0 +1,34 @@
+name: Public toolkit checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Install pinned SOPS and age
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir=$(mktemp -d)
+          trap 'rm -rf "$tool_dir"' EXIT
+          curl -fsSL https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64 -o "$tool_dir/sops"
+          printf '%s  %s\n' e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b "$tool_dir/sops" | sha256sum -c -
+          curl -fsSL https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz -o "$tool_dir/age.tar.gz"
+          printf '%s  %s\n' cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10 "$tool_dir/age.tar.gz" | sha256sum -c -
+          tar -xzf "$tool_dir/age.tar.gz" -C "$tool_dir"
+          sudo install -m 0755 "$tool_dir/sops" "$tool_dir/age/age" "$tool_dir/age/age-keygen" /usr/local/bin/
+      - name: Behavioral tests
+        env:
+          REQUIRE_SOPS_TEST: '1'
+        run: python3 -B -m unittest discover -s tests < /dev/null
+      - name: Exact public boundary and history
+        run: python3 -B scripts/check-public-tree.py --history
+      - name: Whitespace
+        run: git diff --check

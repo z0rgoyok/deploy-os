@@ -1,0 +1,12 @@
+schema_version = 1
+
+[[projects]]
+id = "sample-app"
+status = "example"
+note = "Synthetic example; no secret values or real replicas"
+
+# A real private state adds [[secrets]] with id, project, owner, lifecycle,
+# sops_path = "vault/<id>.json", payload_format, rotation_days and consumers.
+# Each [[secrets.replicas]] has uri, purpose and writable.
+# [[mirrors]] uses id, adapter = "git" or "git-bundle", required and
+# adapter options (remote/branch/provider/visibility or target/branch).
