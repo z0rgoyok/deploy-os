@@ -47,5 +47,36 @@ description: Create, recover and operate an operator-owned private Deploy OS sta
 Источник поставки прикладного кода принадлежит оператору; для внешнего проекта
 используется его управляемый форк. Артефакт связан с commit и digest.
 
+## Agent integrations and progress reporting
+
+Use these rules when Deploy OS configures an agent, an MCP bundle, or a
+progress-reporting service:
+
+1. **Scope MCP per agent.** Keep a global server registry separate from each
+   agent's explicit allowlist. An agent may use a server only when it appears in
+   that agent's allowlist; an entry in the registry alone never grants access.
+   Resolve the requested scope before starting a session and fail closed when a
+   server, tool, or project is outside that scope.
+2. **Apply changes only while idle.** Before changing an agent gateway or its
+   service units, verify that the agent has no active run. Save a rollback copy,
+   apply one layer at a time, restart only the owned service, and read back the
+   effective configuration and health state. Never interrupt an active run to
+   apply routine configuration.
+3. **Migrate observer routes safely.** Treat a legacy observer route as live
+   until the replacement has been installed, enabled, and read back. Make the
+   migration idempotent, verify the new route against a real or synthetic event,
+   then disable and remove the legacy route. Keep ownership and a rollback path
+   explicit; do not delete an unverified route.
+4. **Start reporting in dependency order.** Start and verify the observer first;
+   start the progress-card service only after the observer is ready. The card
+   must consume the observer's durable state, preserve message ownership, and
+   avoid deleting or editing a card belonging to another run.
+5. **Make first systemd installation repeatable.** A first installation must not
+   fail because a referenced service unit has not been installed yet. Install
+   units in dependency order, use explicit `After=`/`Requires=` relationships
+   only for units that are present, run `systemd-analyze verify`, then enable,
+   start, and read back each owned unit. A repeated installation must converge
+   to the same state without duplicating timers, routes, or receipts.
+
 Отдельно сообщать локальные проверки, публикацию, live smoke и невыполненную
 приёмку. Обновление инструментария описано в [release guide](../../../docs/releasing.md).
